@@ -1,0 +1,13 @@
+[
+{
+  "modid": "aboe-discord",
+  "name": "ABOE Discord Integration",
+  "description": "Discord integration for ABOE",
+  "version": "${version}",
+  "mcversion": "${mcversion}",
+  "url": "https://glorantq.me/",
+  "authorList": ["glorantq"],
+  "credits": "The modpack's creators",
+  "logoFile": "aboe.png"
+}
+]
