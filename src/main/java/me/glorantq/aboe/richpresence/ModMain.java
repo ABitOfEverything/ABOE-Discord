@@ -3,6 +3,7 @@ package me.glorantq.aboe.richpresence;
 import club.minnced.discord.rpc.DiscordEventHandlers;
 import club.minnced.discord.rpc.DiscordRPC;
 import club.minnced.discord.rpc.DiscordRichPresence;
+import com.google.gson.JsonParser;
 import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.common.Mod;
 import cpw.mods.fml.common.event.FMLInitializationEvent;
@@ -18,7 +19,6 @@ import me.glorantq.aboe.richpresence.commands.I18NToggleCommand;
 import me.glorantq.aboe.richpresence.i18n.ResourceBundleWrapper;
 import me.glorantq.aboe.richpresence.i18n.UTF8Control;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiChat;
 import net.minecraft.client.gui.GuiMainMenu;
 import net.minecraftforge.client.ClientCommandHandler;
 import net.minecraftforge.client.event.GuiOpenEvent;
@@ -30,38 +30,50 @@ import org.apache.logging.log4j.Logger;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 import org.stringtemplate.v4.ST;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
 import java.net.*;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.ResourceBundle;
 
 
-@Mod(modid = "aboe-discord", version = ModMain.MOD_VERSION, canBeDeactivated = true, acceptableRemoteVersions = "*")
+@Mod(modid = "aboe-discord", version = "1.7.0", canBeDeactivated = true, acceptableRemoteVersions = "*")
 public class ModMain {
-    static final String MOD_VERSION = "1.6.1";
-    private static final String GAME_VERSION = "1.7.10";
+    private static String MOD_VERSION = "Unknown";
+    private static String GAME_VERSION = "Unknown";
 
     private static ModMain INSTANCE;
+
     public static ModMain getInstance() {
         return INSTANCE;
     }
 
     private final Logger logger = LogManager.getLogger("ABOE-Discord");
 
-    private final @Getter String serverListUrl = "https://raw.githubusercontent.com/ABitOfEverything/ABitOfEverythingConfigs/master/discord/official_servers.json";
-    private final @Getter String clientId = "429671204169842708";
+    private final @Getter
+    String serverListUrl = "https://raw.githubusercontent.com/ABitOfEverything/ABitOfEverythingConfigs/master/discord/official_servers.json";
+    private final @Getter
+    String clientId = "429671204169842708";
 
-    private @Getter DiscordRPC discordRPC;
+    private @Getter
+    DiscordRPC discordRPC;
     private DiscordEventHandlers eventHandlers;
     private PlayState lastAppliedState = null;
 
-    private @Getter Configuration configuration;
+    private @Getter
+    Configuration configuration;
     private ResourceBundle bundle = null;
-    private @Setter @Getter boolean i18nEnabled = false;
+    private @Setter
+    @Getter
+    boolean i18nEnabled = false;
 
     private final List<String> officialServerAddresses = new ArrayList<>();
 
@@ -73,6 +85,57 @@ public class ModMain {
         i18nEnabled = configuration.getBoolean("i18nenabled", Configuration.CATEGORY_GENERAL, false, "");
 
         logger.info("Starting with i18n: {}", i18nEnabled);
+
+        logger.debug("Trying to find instance.json");
+
+        File instanceJson = new File("./instance.json");
+
+        if (!instanceJson.exists()) {
+            logger.warn("Instance file not found, trying another location...");
+            instanceJson = new File(Minecraft.getMinecraft().mcDataDir, "instance.json");
+            if (!instanceJson.exists()) {
+                logger.error("Failed to find instance.json, using hardcoded variables!");
+
+                MOD_VERSION = "1.7.0";
+                GAME_VERSION = "1.7.10";
+                return;
+            }
+        }
+
+        String fileContents = null;
+        try {
+            fileContents = new String(Files.readAllBytes(instanceJson.toPath()), "UTF-8");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        if (fileContents == null) {
+            logger.error("Failed to read instance.json!");
+
+            MOD_VERSION = "1.7.0";
+            GAME_VERSION = "1.7.10";
+            return;
+        }
+
+        JSONObject root = null;
+        try {
+            root = (JSONObject) new JSONParser().parse(fileContents);
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
+
+        if(root == null) {
+            logger.error("Failed to parse instance.json!");
+
+            MOD_VERSION = "1.7.0";
+            GAME_VERSION = "1.7.10";
+            return;
+        }
+
+        MOD_VERSION = root.get("version").toString().replaceFirst("ABOE-", "").trim();
+        GAME_VERSION = root.get("minecraftVersion").toString().trim();
+
+        logger.info("Parsed instance.json: {}, {}", MOD_VERSION, GAME_VERSION);
     }
 
     @Mod.EventHandler
@@ -201,7 +264,7 @@ public class ModMain {
     }
 
     public void applyLocale(String gameLanguage, boolean reapplyState) {
-        if(!i18nEnabled) {
+        if (!i18nEnabled) {
             gameLanguage = "en_GB";
         }
 
@@ -215,7 +278,7 @@ public class ModMain {
 
         logger.info("Applied language: {}", gameLanguage);
 
-        if(reapplyState) {
+        if (reapplyState) {
             applyState(lastAppliedState);
         }
     }
